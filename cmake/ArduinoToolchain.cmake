@@ -1,4 +1,9 @@
 #=============================================================================#
+# Arduino Toolchain for CMake
+# Copyright (c) 2016 Philip Roan
+# Forked from Tomasz Bogdal's github.com project (see below for link)
+#
+#=============================================================================#
 # Author: Tomasz Bogdal (QueezyTheGreat)
 # Home:   https://github.com/queezythegreat/arduino-cmake
 #

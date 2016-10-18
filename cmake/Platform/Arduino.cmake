@@ -1,3 +1,16 @@
+
+#=============================================================================#
+# Arduino Toolchain for CMake
+# Copyright (c) 2016 Philip Roan
+# Forked from Tomasz Bogdal's github.com project:
+# 
+# https://github.com/queezythegreat/arduino-cmake
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at http://mozilla.org/MPL/2.0/.
+#=============================================================================#
+#
 #=============================================================================#
 # generate_arduino_firmware(name
 #      [BOARD board_id]
