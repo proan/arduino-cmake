@@ -1,4 +1,3 @@
-
 #=============================================================================#
 # Arduino Toolchain for CMake
 # Copyright (c) 2016 Philip Roan
@@ -677,11 +676,11 @@ function(REGISTER_HARDWARE_PLATFORM PLATFORM_PATH)
                   NAMES variants
                   PATHS ${PLATFORM_PATH} ${PLATFORM_PATH}/avr
                   DOC "Path to directory containing the Arduino variant sources.")
-			
-	    find_file(${PLATFORM}_ARCHITECTURE_LIBRARIES_PATH
-	          NAMES libraries
-		  PATHS ${PLATFORM_PATH} ${PLATFORM_PATH}/avr
-		  DOC "Path to diretory containing the Arduino libraries that are specific to this architecture.")
+                        
+            find_file(${PLATFORM}_ARCHITECTURE_LIBRARIES_PATH
+                  NAMES libraries
+                  PATHS ${PLATFORM_PATH} ${PLATFORM_PATH}/avr
+                  DOC "Path to diretory containing the Arduino libraries that are specific to this architecture.")
 
             find_file(${PLATFORM}_BOOTLOADERS_PATH
                   NAMES bootloaders
@@ -700,7 +699,7 @@ function(REGISTER_HARDWARE_PLATFORM PLATFORM_PATH)
 
             if(${PLATFORM}_BOARDS_PATH)
                 #load_arduino_style_settings(${PLATFORM}_BOARDS "${PLATFORM_PATH}/boards.txt")
-		        load_arduino_style_settings(${PLATFORM}_BOARDS ${${PLATFORM}_BOARDS_PATH})
+                load_arduino_style_settings(${PLATFORM}_BOARDS ${${PLATFORM}_BOARDS_PATH})
             endif()
 
             if(${PLATFORM}_PROGRAMMERS_PATH)
@@ -808,7 +807,7 @@ function(get_arduino_flags COMPILE_FLAGS_VAR LINK_FLAGS_VAR BOARD_ID MANUAL)
     if(BOARD_CORE)
         if(ARDUINO_SDK_VERSION MATCHES "([0-9]+)[.]([0-9]+)")
             #string(REPLACE "." "" ARDUINO_VERSION_DEFINE "${ARDUINO_SDK_VERSION}") # Normalize version (remove all periods)
-	        set(ARDUINO_VERSION_DEFINE "") # This overwrites the line above, so just comment that line out
+            set(ARDUINO_VERSION_DEFINE "") # This overwrites the line above, so just comment that line out
             if(CMAKE_MATCH_1 GREATER 0)
                 set(ARDUINO_VERSION_DEFINE "${CMAKE_MATCH_1}")
             endif()
@@ -820,19 +819,19 @@ function(get_arduino_flags COMPILE_FLAGS_VAR LINK_FLAGS_VAR BOARD_ID MANUAL)
         else()
             message("Invalid Arduino SDK Version (${ARDUINO_SDK_VERSION})")
         endif()
-	    # Handle patch version
-	    if(ARDUINO_SDK_VERSION MATCHES "([0-9]+)[.]([0-9]+)[.]([0-9]+)")
-	        if(CMAKE_MATCH_3 GREATER 10)
+        # Handle patch version
+        if(ARDUINO_SDK_VERSION MATCHES "([0-9]+)[.]([0-9]+)[.]([0-9]+)")
+            if(CMAKE_MATCH_3 GREATER 10)
                 set(ARDUINO_VERSION_DEFINE "${ARDUINO_VERSION_DEFINE}${CMAKE_MATCH_3}")
             else()
                 set(ARDUINO_VERSION_DEFINE "${ARDUINO_VERSION_DEFINE}0${CMAKE_MATCH_3}")
             endif()
-	    endif()
+        endif()
 
-	    # Define flags for Arduino architecture and cpu
-	    if(${${BOARD_ID}.build.board} MATCHES "AVR")
-	        set(ARDUINO_ARCH_FLAGS "-DARDUINO_ARCH_AVR -DARDUINO_${${BOARD_ID}.build.board}")
-	    endif()
+        # Define flags for Arduino architecture and cpu
+        if(${${BOARD_ID}.build.board} MATCHES "AVR")
+            set(ARDUINO_ARCH_FLAGS "-DARDUINO_ARCH_AVR -DARDUINO_${${BOARD_ID}.build.board}")
+        endif()
 
         # output
         set(COMPILE_FLAGS "-DF_CPU=${${BOARD_ID}.build.f_cpu} -DARDUINO=${ARDUINO_VERSION_DEFINE} -mmcu=${${BOARD_ID}.build.mcu} ${ARDUINO_ARCH_FLAGS}")
@@ -957,7 +956,7 @@ function(find_arduino_libraries VAR_NAME SRCS ARDLIBS)
                         if(EXISTS "${LIB_SEARCH_PATH}/${INCLUDE_NAME}/${CMAKE_MATCH_1}")
                             list(APPEND ARDUINO_LIBS ${LIB_SEARCH_PATH}/${INCLUDE_NAME})
                             break()
-			            elseif(EXISTS "${LIB_SEARCH_PATH}/${INCLUDE_NAME}/src/${CMAKE_MATCH_1}")
+                        elseif(EXISTS "${LIB_SEARCH_PATH}/${INCLUDE_NAME}/src/${CMAKE_MATCH_1}")
                             list(APPEND ARDUINO_LIBS ${LIB_SEARCH_PATH}/${INCLUDE_NAME}/src)
                             break()
                         endif()
@@ -998,6 +997,9 @@ endfunction()
 set(Wire_RECURSE True)
 set(Ethernet_RECURSE True)
 set(SD_RECURSE True)
+set(TFT_RECURSE True)
+set(WiFi_RECURSE True)
+set(Robot_Control_RECURSE True)
 function(setup_arduino_library VAR_NAME BOARD_ID LIB_PATH COMPILE_FLAGS LINK_FLAGS)
     set(LIB_TARGETS)
     set(LIB_INCLUDES)
@@ -1332,10 +1334,10 @@ function(setup_arduino_bootloader_burn TARGET_NAME BOARD_ID PROGRAMMER PORT AVRD
 
     # Create burn bootloader target
     add_custom_target(${BOOTLOADER_TARGET}
-                     ${ARDUINO_AVRDUDE_PROGRAM} 
-                     ${AVRDUDE_ARGS}
-		             WORKING_DIRECTORY ${ARDUINO_BOOTLOADERS_PATH}
-                     DEPENDS ${TARGET_NAME})
+                      ${ARDUINO_AVRDUDE_PROGRAM} 
+                      ${AVRDUDE_ARGS}
+                      WORKING_DIRECTORY ${ARDUINO_BOOTLOADERS_PATH}
+                      DEPENDS ${TARGET_NAME})
 endfunction()
 
 #=============================================================================#
@@ -1587,29 +1589,29 @@ function(LOAD_ARDUINO_STYLE_SETTINGS SETTINGS_LIST SETTINGS_PATH)
 
     foreach(FILE_ENTRY ${FILE_ENTRIES})
         if("${FILE_ENTRY}" MATCHES "^[^#]+=.*")
-	    #
-	    # menu handling code
+        #
+        # menu handling code
         # Newer versions of the Arduino IDE have allowed for multiple cpu types on
         # the same board. A menu has been introduced into the boards.txt file.
         # This code uses the variable MENU_SELECTION (set in the top-level CMakeLists.txt
         # to remove the menu text from the selected target board. This is not the
         # ideal solution to this problem.
-	    #
-	    if(MENU_SELECTION)
-	        list(LENGTH MENU_SELECTION NUM_MENUS)
-	        if(NOT NUM_MENUS EQUAL "1")
-		        message(FATAL_ERROR "Only 1 menu selection is currently supported. You have ${NUM_MENUS}.")
-	        endif()	      
-	        #if("${FILE_ENTRY}" MATCHES ${MENU_OPTION})
-	        if("${FILE_ENTRY}" MATCHES ${MENU_SELECTION})
-		        string(REGEX REPLACE ${MENU_SELECTION} "" FILE_ENTRY ${FILE_ENTRY})
-		    #else()
-		        #continue() #continue() isn't supported in CMake 2.8
-		    endif()
-	    endif()
-	    #
-	    # end menu handling code
-	    #
+        #
+        if(MENU_SELECTION)
+            list(LENGTH MENU_SELECTION NUM_MENUS)
+            if(NOT NUM_MENUS EQUAL "1")
+                message(FATAL_ERROR "Only 1 menu selection is currently supported. You have ${NUM_MENUS}.")
+            endif()           
+            #if("${FILE_ENTRY}" MATCHES ${MENU_OPTION})
+            if("${FILE_ENTRY}" MATCHES ${MENU_SELECTION})
+                string(REGEX REPLACE ${MENU_SELECTION} "" FILE_ENTRY ${FILE_ENTRY})
+            #else()
+                #continue() #continue() isn't supported in CMake 2.8
+            endif()
+            #endif()
+            #
+            # end menu handling code
+            #
             string(REGEX MATCH "^[^=]+" SETTING_NAME  ${FILE_ENTRY})
             string(REGEX MATCH "[^=]+$" SETTING_VALUE ${FILE_ENTRY})
             string(REPLACE "." ";" ENTRY_NAME_TOKENS ${SETTING_NAME})
@@ -2208,7 +2210,6 @@ if(NOT ARDUINO_FOUND AND ARDUINO_SDK_PATH)
         DOC "Path to directory containing the Arduino libraries.")
     # Add architecture-specific libraries path to generic libraries path
     list(APPEND ARDUINO_LIBRARIES_PATH ${ARDUINO_ARCHITECTURE_LIBRARIES_PATH})
-    ###
 
     find_file(ARDUINO_VERSION_PATH
         NAMES lib/version.txt
