@@ -1,4 +1,16 @@
 #=============================================================================#
+# Arduino Toolchain for CMake
+# Copyright (c) 2016 Philip Roan
+# Forked from Tomasz Bogdal's github.com project:
+# 
+# https://github.com/queezythegreat/arduino-cmake
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at http://mozilla.org/MPL/2.0/.
+#=============================================================================#
+#
+#=============================================================================#
 # generate_arduino_firmware(name
 #      [BOARD board_id]
 #      [SKETCH sketch_path |
@@ -90,7 +102,7 @@
 # Alternatively you can specify the option by variables:
 #
 #       set(test_SRCS test.cpp test2.cpp)
-#       set(test_HDRS test.h test2.h
+#       set(test_HDRS test.h test2.h)
 #       set(test_BOARD uno)
 #
 #       generate_avr_firmware(test)
@@ -130,7 +142,7 @@
 # Alternatively you can specify the option by variables:
 #
 #       set(test_SRCS test.cpp test2.cpp)
-#       set(test_HDRS test.h test2.h
+#       set(test_HDRS test.h test2.h)
 #       set(test_BOARD uno)
 #
 #       generate_arduino_library(test)
@@ -618,6 +630,7 @@ function(GENERATE_ARDUINO_EXAMPLE INPUT_NAME)
     endif()
 
     find_arduino_libraries(TARGET_LIBS "${ALL_SRCS}" "")
+
     set(LIB_DEP_INCLUDES)
     foreach(LIB_DEP ${TARGET_LIBS})
         set(LIB_DEP_INCLUDES "${LIB_DEP_INCLUDES} -I\"${LIB_DEP}\"")
@@ -656,31 +669,37 @@ function(REGISTER_HARDWARE_PLATFORM PLATFORM_PATH)
 
             find_file(${PLATFORM}_CORES_PATH
                   NAMES cores
-                  PATHS ${PLATFORM_PATH}
+                  PATHS ${PLATFORM_PATH} ${PLATFORM_PATH}/avr
                   DOC "Path to directory containing the Arduino core sources.")
 
             find_file(${PLATFORM}_VARIANTS_PATH
                   NAMES variants
-                  PATHS ${PLATFORM_PATH}
+                  PATHS ${PLATFORM_PATH} ${PLATFORM_PATH}/avr
                   DOC "Path to directory containing the Arduino variant sources.")
+                        
+            find_file(${PLATFORM}_ARCHITECTURE_LIBRARIES_PATH
+                  NAMES libraries
+                  PATHS ${PLATFORM_PATH} ${PLATFORM_PATH}/avr
+                  DOC "Path to diretory containing the Arduino libraries that are specific to this architecture.")
 
             find_file(${PLATFORM}_BOOTLOADERS_PATH
                   NAMES bootloaders
-                  PATHS ${PLATFORM_PATH}
+                  PATHS ${PLATFORM_PATH} ${PLATFORM_PATH}/avr
                   DOC "Path to directory containing the Arduino bootloader images and sources.")
 
             find_file(${PLATFORM}_PROGRAMMERS_PATH
                 NAMES programmers.txt
-                PATHS ${PLATFORM_PATH}
+                PATHS ${PLATFORM_PATH} ${PLATFORM_PATH}/avr
                 DOC "Path to Arduino programmers definition file.")
 
             find_file(${PLATFORM}_BOARDS_PATH
                 NAMES boards.txt
-                PATHS ${PLATFORM_PATH}
+                PATHS ${PLATFORM_PATH} ${PLATFORM_PATH}/avr
                 DOC "Path to Arduino boards definition file.")
 
             if(${PLATFORM}_BOARDS_PATH)
-                load_arduino_style_settings(${PLATFORM}_BOARDS "${PLATFORM_PATH}/boards.txt")
+                #load_arduino_style_settings(${PLATFORM}_BOARDS "${PLATFORM_PATH}/boards.txt")
+                load_arduino_style_settings(${PLATFORM}_BOARDS ${${PLATFORM}_BOARDS_PATH})
             endif()
 
             if(${PLATFORM}_PROGRAMMERS_PATH)
@@ -787,8 +806,8 @@ function(get_arduino_flags COMPILE_FLAGS_VAR LINK_FLAGS_VAR BOARD_ID MANUAL)
     set(BOARD_CORE ${${BOARD_ID}.build.core})
     if(BOARD_CORE)
         if(ARDUINO_SDK_VERSION MATCHES "([0-9]+)[.]([0-9]+)")
-            string(REPLACE "." "" ARDUINO_VERSION_DEFINE "${ARDUINO_SDK_VERSION}") # Normalize version (remove all periods)
-            set(ARDUINO_VERSION_DEFINE "")
+            #string(REPLACE "." "" ARDUINO_VERSION_DEFINE "${ARDUINO_SDK_VERSION}") # Normalize version (remove all periods)
+            set(ARDUINO_VERSION_DEFINE "") # This overwrites the line above, so just comment that line out
             if(CMAKE_MATCH_1 GREATER 0)
                 set(ARDUINO_VERSION_DEFINE "${CMAKE_MATCH_1}")
             endif()
@@ -800,9 +819,22 @@ function(get_arduino_flags COMPILE_FLAGS_VAR LINK_FLAGS_VAR BOARD_ID MANUAL)
         else()
             message("Invalid Arduino SDK Version (${ARDUINO_SDK_VERSION})")
         endif()
+        # Handle patch version
+        if(ARDUINO_SDK_VERSION MATCHES "([0-9]+)[.]([0-9]+)[.]([0-9]+)")
+            if(CMAKE_MATCH_3 GREATER 10)
+                set(ARDUINO_VERSION_DEFINE "${ARDUINO_VERSION_DEFINE}${CMAKE_MATCH_3}")
+            else()
+                set(ARDUINO_VERSION_DEFINE "${ARDUINO_VERSION_DEFINE}0${CMAKE_MATCH_3}")
+            endif()
+        endif()
+
+        # Define flags for Arduino architecture and cpu
+        if(${${BOARD_ID}.build.board} MATCHES "AVR")
+            set(ARDUINO_ARCH_FLAGS "-DARDUINO_ARCH_AVR -DARDUINO_${${BOARD_ID}.build.board}")
+        endif()
 
         # output
-        set(COMPILE_FLAGS "-DF_CPU=${${BOARD_ID}.build.f_cpu} -DARDUINO=${ARDUINO_VERSION_DEFINE} -mmcu=${${BOARD_ID}.build.mcu}")
+        set(COMPILE_FLAGS "-DF_CPU=${${BOARD_ID}.build.f_cpu} -DARDUINO=${ARDUINO_VERSION_DEFINE} -mmcu=${${BOARD_ID}.build.mcu} ${ARDUINO_ARCH_FLAGS}")
         if(DEFINED ${BOARD_ID}.build.vid)
             set(COMPILE_FLAGS "${COMPILE_FLAGS} -DUSB_VID=${${BOARD_ID}.build.vid}")
         endif()
@@ -921,8 +953,11 @@ function(find_arduino_libraries VAR_NAME SRCS ARDLIBS)
                                  DIRECTORY     # Property Scope
                                  PROPERTY LINK_DIRECTORIES)
                     foreach(LIB_SEARCH_PATH ${LIBRARY_SEARCH_PATH} ${ARDUINO_LIBRARIES_PATH} ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/libraries ${ARDUINO_EXTRA_LIBRARIES_PATH})
-                        if(EXISTS ${LIB_SEARCH_PATH}/${INCLUDE_NAME}/${CMAKE_MATCH_1})
+                        if(EXISTS "${LIB_SEARCH_PATH}/${INCLUDE_NAME}/${CMAKE_MATCH_1}")
                             list(APPEND ARDUINO_LIBS ${LIB_SEARCH_PATH}/${INCLUDE_NAME})
+                            break()
+                        elseif(EXISTS "${LIB_SEARCH_PATH}/${INCLUDE_NAME}/src/${CMAKE_MATCH_1}")
+                            list(APPEND ARDUINO_LIBS ${LIB_SEARCH_PATH}/${INCLUDE_NAME}/src)
                             break()
                         endif()
                         if(EXISTS ${LIB_SEARCH_PATH}/${CMAKE_MATCH_1})
@@ -962,6 +997,9 @@ endfunction()
 set(Wire_RECURSE True)
 set(Ethernet_RECURSE True)
 set(SD_RECURSE True)
+set(TFT_RECURSE True)
+set(WiFi_RECURSE True)
+set(Robot_Control_RECURSE True)
 function(setup_arduino_library VAR_NAME BOARD_ID LIB_PATH COMPILE_FLAGS LINK_FLAGS)
     set(LIB_TARGETS)
     set(LIB_INCLUDES)
@@ -976,7 +1014,7 @@ function(setup_arduino_library VAR_NAME BOARD_ID LIB_PATH COMPILE_FLAGS LINK_FLA
             set(${LIB_SHORT_NAME}_RECURSE False)
         endif()
 
-        find_sources(LIB_SRCS ${LIB_PATH} ${${LIB_SHORT_NAME}_RECURSE})
+        find_sources(LIB_SRCS ${LIB_PATH} ${LIB_PATH}/src ${${LIB_SHORT_NAME}_RECURSE})
         if(LIB_SRCS)
 
             arduino_debug_msg("Generating Arduino ${LIB_NAME} library")
@@ -1174,7 +1212,7 @@ function(setup_arduino_bootloader_upload TARGET_NAME BOARD_ID PORT AVRDUDE_FLAGS
     endif()
     set(TARGET_PATH ${EXECUTABLE_OUTPUT_PATH}/${TARGET_NAME})
 
-    list(APPEND AVRDUDE_ARGS "-Uflash:w:${TARGET_PATH}.hex")
+    list(APPEND AVRDUDE_ARGS "-Uflash:w:${TARGET_PATH}.hex:i")
     list(APPEND AVRDUDE_ARGS "-Ueeprom:w:${TARGET_PATH}.eep:i")
     add_custom_target(${UPLOAD_TARGET}
                      ${ARDUINO_AVRDUDE_PROGRAM} 
@@ -1222,7 +1260,7 @@ function(setup_arduino_programmer_burn TARGET_NAME BOARD_ID PROGRAMMER PORT AVRD
     endif()
     set(TARGET_PATH ${EXECUTABLE_OUTPUT_PATH}/${TARGET_NAME})
 
-    list(APPEND AVRDUDE_ARGS "-Uflash:w:${TARGET_PATH}.hex")
+    list(APPEND AVRDUDE_ARGS "-Uflash:w:${TARGET_PATH}.hex:i")
 
     add_custom_target(${PROGRAMMER_TARGET}
                      ${ARDUINO_AVRDUDE_PROGRAM} 
@@ -1258,15 +1296,20 @@ function(setup_arduino_bootloader_burn TARGET_NAME BOARD_ID PROGRAMMER PORT AVRD
         return()
     endif()
 
-    foreach( ITEM unlock_bits high_fuses low_fuses path file)
+    foreach( ITEM unlock_bits high_fuses low_fuses file )
         if(NOT ${BOARD_ID}.bootloader.${ITEM})
             message("Missing ${BOARD_ID}.bootloader.${ITEM}, not creating bootloader burn target ${BOOTLOADER_TARGET}.")
             return()
         endif()
     endforeach()
 
-    if(NOT EXISTS "${ARDUINO_BOOTLOADERS_PATH}/${${BOARD_ID}.bootloader.path}/${${BOARD_ID}.bootloader.file}")
-        message("${ARDUINO_BOOTLOADERS_PATH}/${${BOARD_ID}.bootloader.path}/${${BOARD_ID}.bootloader.file}")
+    # If there is a .path entry, combine with file (as done in newer Arduino distributions)
+    if(${BOARD_ID}.bootloader.path)
+        set(${BOARD_ID}.bootloader.file "${${BOARD_ID}.bootloader.path}/${$(BOARD_ID}.bootloader.file}")
+    endif()
+    #
+    if(NOT EXISTS "${ARDUINO_BOOTLOADERS_PATH}/${${BOARD_ID}.bootloader.file}")
+        message("${ARDUINO_BOOTLOADERS_PATH}/${${BOARD_ID}.bootloader.file}")
         message("Missing bootloader image, not creating bootloader burn target ${BOOTLOADER_TARGET}.")
         return()
     endif()
@@ -1291,10 +1334,10 @@ function(setup_arduino_bootloader_burn TARGET_NAME BOARD_ID PROGRAMMER PORT AVRD
 
     # Create burn bootloader target
     add_custom_target(${BOOTLOADER_TARGET}
-                     ${ARDUINO_AVRDUDE_PROGRAM} 
-                        ${AVRDUDE_ARGS}
-                     WORKING_DIRECTORY ${ARDUINO_BOOTLOADERS_PATH}/${${BOARD_ID}.bootloader.path}
-                     DEPENDS ${TARGET_NAME})
+                      ${ARDUINO_AVRDUDE_PROGRAM} 
+                      ${AVRDUDE_ARGS}
+                      WORKING_DIRECTORY ${ARDUINO_BOOTLOADERS_PATH}
+                      DEPENDS ${TARGET_NAME})
 endfunction()
 
 #=============================================================================#
@@ -1546,6 +1589,29 @@ function(LOAD_ARDUINO_STYLE_SETTINGS SETTINGS_LIST SETTINGS_PATH)
 
     foreach(FILE_ENTRY ${FILE_ENTRIES})
         if("${FILE_ENTRY}" MATCHES "^[^#]+=.*")
+        #
+        # menu handling code
+        # Newer versions of the Arduino IDE have allowed for multiple cpu types on
+        # the same board. A menu has been introduced into the boards.txt file.
+        # This code uses the variable MENU_SELECTION (set in the top-level CMakeLists.txt
+        # to remove the menu text from the selected target board. This is not the
+        # ideal solution to this problem.
+        #
+        if(MENU_SELECTION)
+            list(LENGTH MENU_SELECTION NUM_MENUS)
+            if(NOT NUM_MENUS EQUAL "1")
+                message(FATAL_ERROR "Only 1 menu selection is currently supported. You have ${NUM_MENUS}.")
+            endif()           
+            #if("${FILE_ENTRY}" MATCHES ${MENU_OPTION})
+            if("${FILE_ENTRY}" MATCHES ${MENU_SELECTION})
+                string(REGEX REPLACE ${MENU_SELECTION} "" FILE_ENTRY ${FILE_ENTRY})
+            #else()
+                #continue() #continue() isn't supported in CMake 2.8
+            endif()
+            #endif()
+            #
+            # end menu handling code
+            #
             string(REGEX MATCH "^[^=]+" SETTING_NAME  ${FILE_ENTRY})
             string(REGEX MATCH "[^=]+$" SETTING_VALUE ${FILE_ENTRY})
             string(REPLACE "." ";" ENTRY_NAME_TOKENS ${SETTING_NAME})
@@ -1590,7 +1656,6 @@ function(LOAD_ARDUINO_STYLE_SETTINGS SETTINGS_LIST SETTINGS_PATH)
             # Save setting value
             set(${FULL_SETTING_NAME} ${SETTING_VALUE}
                 CACHE INTERNAL "Arduino ${ENTRY_NAME} Board setting")
-            
 
         endif()
     endforeach()
@@ -2077,18 +2142,19 @@ endfunction()
 #=============================================================================#
 if (NOT DEFINED ARDUINO_C_FLAGS)
     set(ARDUINO_C_FLAGS "-mcall-prologues -ffunction-sections -fdata-sections")
+    set(ARDUINO_C_FLAGS "${ARDUINO_C_FLAGS}  -MMD -flto -Wall -Wextra -Wshadow -funsigned-char -funsigned-bitfields -fpack-struct -fshort-enums")
 endif (NOT DEFINED ARDUINO_C_FLAGS)
-set(CMAKE_C_FLAGS                "-g -Os       ${ARDUINO_C_FLAGS}"    CACHE STRING "")
-set(CMAKE_C_FLAGS_DEBUG          "-g           ${ARDUINO_C_FLAGS}"    CACHE STRING "")
-set(CMAKE_C_FLAGS_MINSIZEREL     "-Os -DNDEBUG ${ARDUINO_C_FLAGS}"    CACHE STRING "")
-set(CMAKE_C_FLAGS_RELEASE        "-Os -DNDEBUG -w ${ARDUINO_C_FLAGS}" CACHE STRING "")
-set(CMAKE_C_FLAGS_RELWITHDEBINFO "-Os -g       -w ${ARDUINO_C_FLAGS}" CACHE STRING "")
+set(CMAKE_C_FLAGS                "-g -Os       -Wstrict-prototypes ${ARDUINO_C_FLAGS}"    CACHE STRING "")
+set(CMAKE_C_FLAGS_DEBUG          "-g           -Wstrict-prototypes ${ARDUINO_C_FLAGS}"    CACHE STRING "")
+set(CMAKE_C_FLAGS_MINSIZEREL     "-Os -DNDEBUG -Wstrict-prototypes ${ARDUINO_C_FLAGS}"    CACHE STRING "")
+set(CMAKE_C_FLAGS_RELEASE        "-Os -DNDEBUG -Wstrict-prototypes ${ARDUINO_C_FLAGS}" CACHE STRING "")
+set(CMAKE_C_FLAGS_RELWITHDEBINFO "-Os -g       -Wstrict-prototypes ${ARDUINO_C_FLAGS}" CACHE STRING "")
 
 #=============================================================================#
 #                             C++ Flags                                       
 #=============================================================================#
 if (NOT DEFINED ARDUINO_CXX_FLAGS)
-    set(ARDUINO_CXX_FLAGS "${ARDUINO_C_FLAGS} -fno-exceptions")
+    set(ARDUINO_CXX_FLAGS "${ARDUINO_C_FLAGS} -std=gnu++11 -fno-exceptions")
 endif (NOT DEFINED ARDUINO_CXX_FLAGS)
 set(CMAKE_CXX_FLAGS                "-g -Os       ${ARDUINO_CXX_FLAGS}" CACHE STRING "")
 set(CMAKE_CXX_FLAGS_DEBUG          "-g           ${ARDUINO_CXX_FLAGS}" CACHE STRING "")
@@ -2108,7 +2174,7 @@ set(CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "${ARDUINO_LINKER_FLAGS}" CACHE STRING
 
 #=============================================================================#
 #=============================================================================#
-#                       Shared Lbrary Linker Flags                            #
+#                       Shared Library Linker Flags                           #
 #=============================================================================#
 set(CMAKE_SHARED_LINKER_FLAGS                "${ARDUINO_LINKER_FLAGS}" CACHE STRING "")
 set(CMAKE_SHARED_LINKER_FLAGS_DEBUG          "${ARDUINO_LINKER_FLAGS}" CACHE STRING "")
@@ -2129,7 +2195,8 @@ set(CMAKE_MODULE_LINKER_FLAGS_RELWITHDEBINFO "${ARDUINO_LINKER_FLAGS}" CACHE STR
 set(ARDUINO_OBJCOPY_EEP_FLAGS -O ihex -j .eeprom --set-section-flags=.eeprom=alloc,load
     --no-change-warnings --change-section-lma .eeprom=0   CACHE STRING "")
 set(ARDUINO_OBJCOPY_HEX_FLAGS -O ihex -R .eeprom          CACHE STRING "")
-set(ARDUINO_AVRDUDE_FLAGS -V                              CACHE STRING "")
+#set(ARDUINO_AVRDUDE_FLAGS -V                              CACHE STRING "") 
+set(ARDUINO_AVRDUDE_FLAGS " "                             CACHE STRING "") #turn on verification of upload
 
 #=============================================================================#
 #                          Initialization                                     
@@ -2141,6 +2208,8 @@ if(NOT ARDUINO_FOUND AND ARDUINO_SDK_PATH)
         NAMES libraries
         PATHS ${ARDUINO_SDK_PATH}
         DOC "Path to directory containing the Arduino libraries.")
+    # Add architecture-specific libraries path to generic libraries path
+    list(APPEND ARDUINO_LIBRARIES_PATH ${ARDUINO_ARCHITECTURE_LIBRARIES_PATH})
 
     find_file(ARDUINO_VERSION_PATH
         NAMES lib/version.txt
