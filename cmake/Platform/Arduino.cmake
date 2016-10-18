@@ -1589,26 +1589,23 @@ function(LOAD_ARDUINO_STYLE_SETTINGS SETTINGS_LIST SETTINGS_PATH)
 
     foreach(FILE_ENTRY ${FILE_ENTRIES})
         if("${FILE_ENTRY}" MATCHES "^[^#]+=.*")
-        #
-        # menu handling code
-        # Newer versions of the Arduino IDE have allowed for multiple cpu types on
-        # the same board. A menu has been introduced into the boards.txt file.
-        # This code uses the variable MENU_SELECTION (set in the top-level CMakeLists.txt
-        # to remove the menu text from the selected target board. This is not the
-        # ideal solution to this problem.
-        #
-        if(MENU_SELECTION)
-            list(LENGTH MENU_SELECTION NUM_MENUS)
-            if(NOT NUM_MENUS EQUAL "1")
-                message(FATAL_ERROR "Only 1 menu selection is currently supported. You have ${NUM_MENUS}.")
-            endif()           
-            #if("${FILE_ENTRY}" MATCHES ${MENU_OPTION})
-            if("${FILE_ENTRY}" MATCHES ${MENU_SELECTION})
-                string(REGEX REPLACE ${MENU_SELECTION} "" FILE_ENTRY ${FILE_ENTRY})
-            #else()
-                #continue() #continue() isn't supported in CMake 2.8
+            #
+            # menu handling code
+            # Newer versions of the Arduino IDE have allowed for multiple cpu types on
+            # the same board. A menu has been introduced into the boards.txt file.
+            # This code uses the variable MENU_SELECTION (set in the top-level CMakeLists.txt
+            # to remove the menu text from the selected target board. This is not the
+            # ideal solution to this problem.
+            #
+            if(MENU_SELECTION)
+                list(LENGTH MENU_SELECTION NUM_MENUS)
+                if(NOT NUM_MENUS EQUAL "1")
+                    message(FATAL_ERROR "Only 1 menu selection is currently supported. You have ${NUM_MENUS}.")
+                endif()           
+                if("${FILE_ENTRY}" MATCHES ${MENU_SELECTION})
+                    string(REGEX REPLACE ${MENU_SELECTION} "" FILE_ENTRY ${FILE_ENTRY})
+                endif()
             endif()
-            #endif()
             #
             # end menu handling code
             #
