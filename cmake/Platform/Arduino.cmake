@@ -1305,7 +1305,7 @@ function(setup_arduino_bootloader_burn TARGET_NAME BOARD_ID PROGRAMMER PORT AVRD
 
     # If there is a .path entry, combine with file (as done in newer Arduino distributions)
     if(${BOARD_ID}.bootloader.path)
-        set(${BOARD_ID}.bootloader.file "${${BOARD_ID}.bootloader.path}/${$(BOARD_ID}.bootloader.file}")
+        set(${BOARD_ID}.bootloader.file "${${BOARD_ID}.bootloader.path}/${${BOARD_ID}.bootloader.file}")
     endif()
     #
     if(NOT EXISTS "${ARDUINO_BOOTLOADERS_PATH}/${${BOARD_ID}.bootloader.file}")
